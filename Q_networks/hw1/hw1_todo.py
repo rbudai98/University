@@ -9,9 +9,8 @@ Logger.DISABLED = True
 
 
 def sender_protocol(host, receiver):
-    # secret = "It must be remembered that there is nothing more difficult to plan, more doubtful of success, nor more dangerous to manage, than the creation of a new system. For the initiator has the enmity of all who would profit by the preservation of the old institutions, and merely lukewarm defenders in those who would gain by the new ones."
-    print("Starting sender protocol")
-    secret = "test"
+    secret = "It must be remembered that there is nothing more difficult to plan, more doubtful of success, nor more dangerous to manage, than the creation of a new system. For the initiator has the enmity of all who would profit by the preservation of the old institutions, and merely lukewarm defenders in those who would gain by the new ones."
+    # secret = "test"
     
     secret_bin = list(map(bin, bytearray(secret, 'utf-8')))
     secret_bin = [x[2:].zfill(8) for x in secret_bin]
@@ -23,24 +22,25 @@ def sender_protocol(host, receiver):
             # TODO: Create a qubit and encode the classical bit into it.
             # Note: a qubit is created in the stata |0> by default
             q = Qubit(host)
-            if (bit):
+            if (bit=="1"):
                 q.X()
             # TODO: Send the qubit to the receiver, make it await acknowledgment
             # Send the qubit and await an ACK
-            q_id, _ = host.send_qubit(receiver.host_id, q, await_ack=True)
+            host.send_qubit(receiver, q, await_ack=True)
 
 
 
     # TODO: Send the classical message to the receiver
     # THe content of the message should be "END"
     # The message signals the end of secret phrase transmission
-    host.send_classical(receiver.host_id, 'END')
+    print(f"Sending classical END")
+    host.send_classical(receiver, 'END')
 
     # Secret Verify
     # TODO: Receive classical message, which includes the secret
-    message = host.get_next_classical(receiver.host_id)
+    message = host.get_next_classical(receiver)
 
-    recv_secret = message[0].content
+    recv_secret = message.content
     print()
     if recv_secret==secret:
         print(f"{host.host_id}: Secret Exchange succeeded")
@@ -52,7 +52,6 @@ def sender_protocol(host, receiver):
 
 
 def receiver_protocol(host, sender):
-    print("Starting receiver protocol")
     secret_bits = []
     while True:
         classical_message = host.get_classical(sender, wait=0)
@@ -61,13 +60,13 @@ def receiver_protocol(host, sender):
         # TODO: Get the qubit which was sent by the sender
         # Use the get_data_qubit(sender, wait) method
         # Set wait parameter to 5
-        q = host.get_qubit(sender.host_id)
+        q = host.get_data_qubit(sender, wait=5)
 
         if q is None:
             continue
-        print("Got qubit")
         # TODO: Measure the qubit and append it to the secret_bits list
-        secret_bits.append(q.measure())
+        m = q.measure()
+        secret_bits.append(m)
 
         if len(secret_bits)%8 == 0:
            sb = ["".join(map(str, secret_bits[i:i+8])) for i in range(0,len(secret_bits), 8)]
@@ -84,7 +83,7 @@ def receiver_protocol(host, sender):
     # Secret Verify
     # TODO: Send the secret (variable secret) back to the sender for verification.
     print("Secret from receiver: ", secret)
-    host.send_classical(sender.host_id, secret)
+    host.send_classical(sender, secret)
 
 
 def main():
@@ -121,16 +120,20 @@ def main():
     # The first parameter of the protocol should be the host. Self reference
     # is passed automatically.
     # 1. Apply sender protocol to first host,
-    p1 = alice.run_protocol(sender_protocol(alice, bob))
     # 2. Apply receiver protocol to the second host.
-    p2 = bob.run_protocol(receiver_protocol(bob, alice))
+    p1 = alice.run_protocol(sender_protocol, (bob.host_id, ))
+    p2 = bob.run_protocol(receiver_protocol, (alice.host_id, ))
+
     # run_protocol() method returns a thread object. Store both threads as some variable
     # and join them.
-    # p1.start()
-    # p2.start()
     
     p1.join()
     p2.join()
+
+    # start_time = time.time()
+    # while time.time() - start_time < 150:
+    #     pass
+
 
     # TODO: Finally stop the network
     network.stop()
