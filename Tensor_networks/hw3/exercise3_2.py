@@ -60,4 +60,6 @@ def max_bond_contraction(tn: RandomFourTensorNetwork):
     
 def exhaustive_search_contraction(tn: RandomFourTensorNetwork):
     # TODO: Subproblem (c)
+    listOfPermuations = itertools.permutation('1234',4)
+    print(listOfPermuations)
     return 0
